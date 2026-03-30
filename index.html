@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snake</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #080d1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: monospace;
+    }
+    #game-wrap {
+      background: #080d1a;
+      border: 0.5px solid #0f1a2e;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 24px 24px;
+      gap: 16px;
+    }
+    #header { width: 100%; display: flex; justify-content: space-between; align-items: baseline; }
+    #title { font-size: 11px; letter-spacing: 4px; color: #c060a0; text-transform: uppercase; }
+    #score-display { font-size: 13px; color: #e070b0; letter-spacing: 2px; }
+    #hi-display { font-size: 11px; color: #7a3060; letter-spacing: 2px; }
+    canvas { border: 1px solid #0f1e38; display: block; }
+    #message { font-size: 12px; letter-spacing: 2px; color: #c060a0; text-align: center; min-height: 18px; text-transform: uppercase; }
+    #controls { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(2, 44px); gap: 4px; margin-top: 4px; }
+    .ctrl-btn {
+      width: 44px; height: 44px;
+      background: #0a1020;
+      border: 1px solid #0f1e38;
+      border-radius: 6px;
+      color: #e070b0;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.1s;
+      user-select: none;
+    }
+    .ctrl-btn:hover { background: #101828; }
+    .ctrl-btn:active { background: #0f1e38; }
+    #btn-restart {
+      background: none;
+      border: 1px solid #7a3060;
+      color: #c060a0;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: monospace;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    #btn-restart:hover { border-color: #e070b0; color: #e070b0; }
+  </style>
+</head>
+<body>
+<div id="game-wrap">
+  <div id="header">
+    <div id="title">Snake</div>
+    <div style="display:flex;gap:16px;align-items:baseline;">
+      <div id="hi-display">HI 0</div>
+      <div id="score-display">00</div>
+    </div>
+  </div>
+  <canvas id="c"></canvas>
+  <div id="message">press any arrow to start</div>
+  <div id="controls">
+    <div></div>
+    <button class="ctrl-btn" onclick="ctrlPress('UP')">&#8593;</button>
+    <div></div>
+    <button class="ctrl-btn" onclick="ctrlPress('LEFT')">&#8592;</button>
+    <button class="ctrl-btn" onclick="ctrlPress('DOWN')">&#8595;</button>
+    <button class="ctrl-btn" onclick="ctrlPress('RIGHT')">&#8594;</button>
+  </div>
+  <button id="btn-restart" onclick="restart()">Restart</button>
+</div>
+
+<script>
+const COLS=20,ROWS=20,CELL=15;
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+canvas.width=COLS*CELL; canvas.height=ROWS*CELL;
+const BG='#080d1a',GRID='#0c1428',PINK_HEAD='#ff80c8',PINK_BODY='#d04898',PINK_DARK='#7a1a58',ORANGE='#ff8c00',ORANGE_ST='#a85000',RED_WARN='#e82020';
+let snake,dir,nextDir,food,walls,score,hiScore,state,loop;
+function init(){
+  snake=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir={x:1,y:0}; nextDir={x:1,y:0};
+  score=0; walls=[]; state='idle';
+  placeFood(); updateScore(); draw();
+  document.getElementById('message').textContent='press any arrow to start';
+}
+function restart(){clearInterval(loop);init();}
+function placeFood(){
+  let pos;
+  do { pos={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)}; }
+  while(snake.some(s=>s.x===pos.x&&s.y===pos.y)||walls.some(w=>w.x===pos.x&&w.y===pos.y));
+  food=pos;
+}
+function placeWall(){
+  if(walls.length>=8)return;
+  let pos,attempts=0;
+  do{pos={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)};attempts++;}
+  while(attempts<30&&(snake.some(s=>s.x===pos.x&&s.y===pos.y)||walls.some(w=>w.x===pos.x&&w.y===pos.y)||(pos.x===food.x&&pos.y===food.y)||(Math.abs(pos.x-snake[0].x)<3&&Math.abs(pos.y-snake[0].y)<3)));
+  if(attempts<30)walls.push(pos);
+}
+function start(){
+  state='playing';
+  document.getElementById('message').textContent='';
+  clearInterval(loop);
+  loop=setInterval(tick,Math.max(60,130-score*3));
+}
+function tick(){
+  dir=nextDir;
+  const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(head.x<0||head.x>=COLS||head.y<0||head.y>=ROWS||snake.some(s=>s.x===head.x&&s.y===head.y)||walls.some(w=>w.x===head.x&&w.y===head.y)){gameOver();return;}
+  snake.unshift(head);
+  if(head.x===food.x&&head.y===food.y){
+    score++; updateScore(); placeFood();
+    if(score%3===0)placeWall();
+    clearInterval(loop); loop=setInterval(tick,Math.max(60,130-score*3));
+  } else { snake.pop(); }
+  draw();
+}
+function gameOver(){
+  clearInterval(loop); state='over';
+  if(score>hiScore){hiScore=score;try{localStorage.setItem('snake_hi2',hiScore);}catch(e){}
+  document.getElementById('hi-display').textContent='HI '+hiScore;}
+  document.getElementById('message').textContent='game over — restart?';
+  drawGameOver();
+}
+function updateScore(){document.getElementById('score-display').textContent=String(score).padStart(2,'0');}
+function draw(){
+  ctx.fillStyle=BG; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle=GRID; ctx.lineWidth=0.5;
+  for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*CELL,0);ctx.lineTo(x*CELL,canvas.height);ctx.stroke();}
+  for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*CELL);ctx.lineTo(canvas.width,y*CELL);ctx.stroke();}
+  walls.forEach(w=>{
+    ctx.fillStyle=RED_WARN; ctx.fillRect(w.x*CELL+1,w.y*CELL+1,CELL-2,CELL-2);
+    ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(w.x*CELL+1,w.y*CELL+1,CELL-2,3);
+  });
+  snake.forEach((s,i)=>{
+    ctx.fillStyle=i===0?PINK_HEAD:(i%2===0?PINK_BODY:PINK_DARK);
+    ctx.fillRect(s.x*CELL+1,s.y*CELL+1,CELL-2,CELL-2);
+    if(i===0){
+      ctx.fillStyle=BG;
+      const ox=dir.x,oy=dir.y,perp={x:-oy,y:ox};
+      const ex1=Math.round(CELL/2+perp.x*3+ox*3),ey1=Math.round(CELL/2+perp.y*3+oy*3);
+      const ex2=Math.round(CELL/2-perp.x*3+ox*3),ey2=Math.round(CELL/2-perp.y*3+oy*3);
+      ctx.fillRect(s.x*CELL+ex1-1,s.y*CELL+ey1-1,2,2);
+      ctx.fillRect(s.x*CELL+ex2-1,s.y*CELL+ey2-1,2,2);
+    }
+  });
+  ctx.fillStyle=ORANGE; ctx.beginPath();
+  ctx.arc(food.x*CELL+CELL/2,food.y*CELL+CELL/2,CELL/2-2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=ORANGE_ST; ctx.fillRect(food.x*CELL+CELL/2-1,food.y*CELL+2,2,3);
+}
+function drawGameOver(){
+  draw();
+  ctx.fillStyle='rgba(8,13,26,0.72)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle=PINK_HEAD; ctx.font='500 13px monospace'; ctx.textAlign='center';
+  ctx.fillText('SCORE  '+score,canvas.width/2,canvas.height/2-8);
+  if(score>0&&score===hiScore){ctx.fillStyle=ORANGE;ctx.font='11px monospace';ctx.fillText('new high score!',canvas.width/2,canvas.height/2+10);}
+}
+function handleKey(e){
+  const map={ArrowUp:'UP',ArrowDown:'DOWN',ArrowLeft:'LEFT',ArrowRight:'RIGHT',w:'UP',s:'DOWN',a:'LEFT',d:'RIGHT'};
+  const action=map[e.key]; if(!action)return; e.preventDefault(); ctrlPress(action);
+}
+function ctrlPress(action){
+  const moves={UP:{x:0,y:-1},DOWN:{x:0,y:1},LEFT:{x:-1,y:0},RIGHT:{x:1,y:0}};
+  const d=moves[action];
+  if(state==='idle'){nextDir=d;start();return;}
+  if(state==='over'){restart();return;}
+  if(d.x!== -dir.x||d.y!== -dir.y)nextDir=d;
+}
+document.addEventListener('keydown',handleKey);
+try{hiScore=parseInt(localStorage.getItem('snake_hi2')||'0');}catch(e){hiScore=0;}
+document.getElementById('hi-display').textContent='HI '+hiScore;
+init();
+</script>
+</body>
+</html>
